@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Implantação</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-blur: blur(12px);
+            --text-color: #e0e0e0;
+            --accent-yellow: #f9e79f;
+            --red-status: rgba(255, 68, 68, 0.6);
+            --orange-status: rgba(255, 140, 0, 0.6);
+            --green-status: rgba(68, 221, 68, 0.6);
+            --blue-status: rgba(52, 152, 219, 0.6);
+            --bg-gradient: radial-gradient(circle at top left, #2c3e50, #1a252f);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            font-family: 'Ubuntu', sans-serif;
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(52, 152, 219, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(249, 231, 159, 0.03) 0%, transparent 40%);
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 25px 40px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(249, 231, 159, 0.15);
+            box-shadow: 0 0 20px rgba(249, 231, 159, 0.05), 
+                        inset 0 0 15px rgba(249, 231, 159, 0.02);
+            transition: all 0.4s ease;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .header:hover {
+            border-color: rgba(249, 231, 159, 0.4);
+            box-shadow: 0 0 30px rgba(249, 231, 159, 0.15), 
+                        inset 0 0 20px rgba(249, 231, 159, 0.05);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: var(--accent-yellow);
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            text-shadow: 0 0 10px rgba(249, 231, 159, 0.2);
+        }
+
+        .upload-section {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            width: 1px;
+            height: 30px;
+            background: linear-gradient(to bottom, transparent, var(--glass-border));
+        }
+
+        .upload-area {
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .upload-area:hover {
+            transform: scale(1.02);
+        }
+
+        .folder-icon {
+            width: 36px;
+            height: 28px;
+            background: rgba(244, 208, 63, 0.3);
+            border-radius: 5px;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            opacity: 0.7;
+        }
+
+        .folder-icon::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 0;
+            width: 18px;
+            height: 8px;
+            background: rgba(244, 208, 63, 0.4);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .upload-text {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .upload-subtext {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 300;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* SPINNER COM GLASSMORPHISM PARA IMPORTAÇÃO */
+        .import-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+
+        .import-overlay.active {
+            display: flex;
+        }
+
+        .import-spinner-container {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 28px;
+            padding: 60px 80px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .import-spinner-title {
+            font-size: 1.1rem;
+            color: var(--accent-yellow);
+            margin-bottom: 30px;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+
+        .import-spinner-visual {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .import-spinner-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 3px solid rgba(255, 255, 255, 0.08);
+            border-top: 3px solid var(--accent-yellow);
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        .import-spinner-ring:nth-child(2) {
+            width: 80%;
+            height: 80%;
+            top: 10%;
+            left: 10%;
+            border-top-color: rgba(249, 231, 159, 0.6);
+            animation: spin 1.5s linear infinite reverse;
+        }
+
+        .import-spinner-ring:nth-child(3) {
+            width: 60%;
+            height: 60%;
+            top: 20%;
+            left: 20%;
+            border-top-color: rgba(249, 231, 159, 0.3);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .import-spinner-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: 300;
+            color: var(--accent-yellow);
+            text-shadow: 0 0 20px rgba(249, 231, 159, 0.3);
+        }
+
+        .import-spinner-text {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+
+        .stat-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 25px 35px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            width: 100%;
+        }
+
+        .stat-card-toggle {
+            font-size: 0.9rem;
+            opacity: 0.6;
+            transition: transform 0.3s ease;
+            margin-left: 15px;
+            flex-shrink: 0;
+        }
+
+        .stat-card.expanded .stat-card-toggle {
+            transform: rotate(180deg);
+        }
+
+        .stat-card-content {
+            margin-top: 20px;
+            max-height: 0;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .stat-card.expanded .stat-card-content {
+            max-height: 200px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .stat-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+            flex: 1;
+            text-align: left;
+        }
+
+        .spinner-modern {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+        }
+
+        .tick {
+            position: absolute;
+            width: 2px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            left: 50%;
+            transform-origin: 50% 55px;
+            border-radius: 1px;
+        }
+
+        .tick.active {
+            background: var(--accent-yellow);
+            box-shadow: 0 0 10px rgba(249, 231, 159, 0.3);
+        }
+
+        .spinner-percentage-text {
+            font-size: 1.4rem;
+            font-weight: 300;
+            color: var(--accent-yellow);
+            opacity: 0.9;
+        }
+
+        .stat-info-text {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .stat-info-text b {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* CARDS DE RESUMO - EMPRESAS COM 80%+ */
+        .summary-cards-section {
+            margin-bottom: 50px;
+            padding: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-title {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 35px;
+            color: var(--accent-yellow);
+            font-weight: 300;
+            text-align: center;
+        }
+
+        .summary-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 25px 30px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            cursor: pointer;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .summary-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-yellow), transparent);
+            opacity: 0;
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        .summary-card:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(249, 231, 159, 0.1);
+        }
+
+        .summary-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            width: 100%;
+            gap: 15px;
+        }
+
+        .summary-card-header > div:first-child {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+
+        .summary-card-toggle {
+            font-size: 0.9rem;
+            opacity: 0.6;
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .summary-card.expanded .summary-card-toggle {
+            transform: rotate(180deg);
+        }
+
+        .summary-card-content {
+            margin-top: 15px;
+            max-height: 0;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .summary-card.expanded .summary-card-content {
+            max-height: 150px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .summary-card-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+
+        .summary-card-module {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
+
+        .summary-card-number {
+            font-size: 2.8rem;
+            font-weight: 300;
+            color: var(--accent-yellow);
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(249, 231, 159, 0.2);
+        }
+
+        .summary-card-label {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.5px;
+        }
+
+        .list-container {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+
+        .list-header {
+            padding: 22px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .list-header:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .list-title {
+            font-size: 0.95rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: 0.5px;
+        }
+
+        .collapse-icon {
+            font-size: 0.8rem;
+            opacity: 0.4;
+            transition: transform 0.3s ease;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .list-content {
+            max-height: 3000px;
+            padding: 30px;
+            transition: all 0.5s ease;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .list-content.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* NOVO: Estilo para visualização em linhas */
+        .company-rows-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .company-row {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 8px 15px;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+
+        .company-row:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: translateX(4px);
+        }
+
+        .company-row-header {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            flex-shrink: 0;
+        }
+
+        .company-code {
+            font-size: 0.75rem;
+            color: var(--accent-yellow);
+            opacity: 0.8;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: rgba(249, 231, 159, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .company-name {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
+        }
+
+        .badge-red { color: #ff6b6b; border-color: rgba(255, 107, 107, 0.2); }
+        .badge-orange { color: #feca57; border-color: rgba(254, 202, 87, 0.2); }
+        .badge-green { color: #1dd1a1; border-color: rgba(29, 209, 161, 0.2); }
+        .badge-blue { color: #48dbfb; border-color: rgba(72, 219, 251, 0.2); }
+
+        .company-row-details {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex-grow: 1;
+            justify-content: flex-start;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            white-space: nowrap;
+        }
+
+        .detail-item.done {
+            background: rgba(29, 209, 161, 0.1);
+            color: #1dd1a1;
+        }
+
+        .detail-item.pending {
+            background: rgba(255, 107, 107, 0.1);
+            color: #ff6b6b;
+        }
+
+        .icon-check { color: #1dd1a1; font-size: 0.8rem; }
+        .icon-pending { color: #ff6b6b; font-size: 0.8rem; }
+
+        .company-row-actions {
+            display: flex;
+            flex-direction: row;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .action-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            text-decoration: none;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transform: scale(1.05);
+        }
+
+        .btn-discreet {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-discreet:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        /* Estilos de Paginação */
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .pagination-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--accent-yellow);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: rgba(249, 231, 159, 0.2);
+            transform: scale(1.1);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .pagination-info {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .export-section {
+            margin-top: 60px;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .export-btn {
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: rgba(255, 255, 255, 0.5);
+            padding: 12px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .export-btn:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+            box-shadow: 0 0 20px rgba(249, 231, 159, 0.1);
+        }
+
+        #empty-state {
+            margin-top: 100px;
+            text-align: center;
+            opacity: 0.3;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .filter-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 40, 50, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            min-width: 400px;
+            display: none;
+            padding: 30px;
+        }
+
+        .filter-popup.active { display: block; }
+        .filter-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px);
+            display: none; z-index: 1999;
+        }
+        .filter-overlay.active { display: block; }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #fff;
+            margin: 20px 0;
+            outline: none;
+        }
+
+        @media (max-width: 1024px) {
+            .company-row {
+                grid-template-columns: 1fr;
+            }
+            .company-row-actions {
+                flex-direction: row;
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header" id="main-header">
+        <div id="upload-container">
+            <h1>Dashboard de Implantação</h1>
+            <div class="upload-section">
+                <label for="file-upload" class="upload-area">
+                    <div class="folder-icon"></div>
+                    <span class="upload-text">Clique para fazer upload da planilha</span>
+                    <span class="upload-subtext">ou arraste um arquivo XLS/XLSX</span>
+                </label>
+                <input type="file" id="file-upload" accept=".xls,.xlsx">
+            </div>
+        </div>
+        <div id="result-container" style="display: none; padding: 20px;">
+            <h1 style="color: var(--accent-yellow); font-size: 1.8rem; letter-spacing: 4px; margin: 0; text-shadow: 0 0 15px rgba(249, 231, 159, 0.3);">RESULTADO | ANÁLISE - IMPLANTAÇÃO</h1>
+        </div>
+    </div>
+
+    <!-- SPINNER DE IMPORTAÇÃO COM GLASSMORPHISM -->
+    <div class="import-overlay" id="import-overlay">
+        <div class="import-spinner-container">
+            <div class="import-spinner-title">Processando Arquivo</div>
+            <div class="import-spinner-visual">
+                <div class="import-spinner-ring"></div>
+                <div class="import-spinner-ring"></div>
+                <div class="import-spinner-ring"></div>
+                <div class="import-spinner-percentage" id="import-percentage">0%</div>
+            </div>
+            <div class="import-spinner-text" id="import-text">Iniciando importação...</div>
+        </div>
+    </div>
+
+    <div id="empty-state">
+        Aguardando upload de arquivo...
+    </div>
+
+    <div id="dashboard" style="display: none;">
+        <div class="stats-grid">
+            <div class="stat-card" onclick="toggleStatCard(this)">
+                <div class="stat-card-header">
+                    <div class="stat-title">Módulo Fiscal</div>
+                    <div class="stat-card-toggle">▼</div>
+                </div>
+                <div class="stat-card-content">
+                    <div id="spinner-fiscal"></div>
+                    <div class="stat-info-text">Progresso: <b id="global-progress-fiscal">0%</b></div>
+                </div>
+            </div>
+            <div class="stat-card" onclick="toggleStatCard(this)">
+                <div class="stat-card-header">
+                    <div class="stat-title">Módulo Contábil</div>
+                    <div class="stat-card-toggle">▼</div>
+                </div>
+                <div class="stat-card-content">
+                    <div id="spinner-contabil"></div>
+                    <div class="stat-info-text">Progresso: <b id="global-progress-contabil">0%</b></div>
+                </div>
+            </div>
+            <div class="stat-card" onclick="toggleStatCard(this)">
+                <div class="stat-card-header">
+                    <div class="stat-title">Módulo Folha</div>
+                    <div class="stat-card-toggle">▼</div>
+                </div>
+                <div class="stat-card-content">
+                    <div id="spinner-folha"></div>
+                    <div class="stat-info-text">Progresso: <b id="global-progress-folha">0%</b></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARDS DE RESUMO - EMPRESAS COM 80%+ -->
+        <div class="summary-cards-section">
+            <div class="summary-title">Empresas com Implantação Acima de 80%</div>
+            <div class="summary-cards-grid">
+                <div class="summary-card" onclick="toggleSummaryCard(this)">
+                    <div class="summary-card-header">
+                        <div>
+                            <div class="summary-card-icon">📋</div>
+                            <div class="summary-card-module">Módulo Fiscal</div>
+                        </div>
+                        <div class="summary-card-toggle">▼</div>
+                    </div>
+                    <div class="summary-card-content">
+                        <div class="summary-card-number" id="summary-fiscal">0</div>
+                        <div class="summary-card-label">Empresas com 80%+</div>
+                    </div>
+                </div>
+                <div class="summary-card" onclick="toggleSummaryCard(this)">
+                    <div class="summary-card-header">
+                        <div>
+                            <div class="summary-card-icon">📋</div>
+                            <div class="summary-card-module">Módulo Contábil</div>
+                        </div>
+                        <div class="summary-card-toggle">▼</div>
+                    </div>
+                    <div class="summary-card-content">
+                        <div class="summary-card-number" id="summary-contabil">0</div>
+                        <div class="summary-card-label">Empresas com 80%+</div>
+                    </div>
+                </div>
+                <div class="summary-card" onclick="toggleSummaryCard(this)">
+                    <div class="summary-card-header">
+                        <div>
+                            <div class="summary-card-icon">📋</div>
+                            <div class="summary-card-module">Módulo Folha</div>
+                        </div>
+                        <div class="summary-card-toggle">▼</div>
+                    </div>
+                    <div class="summary-card-content">
+                        <div class="summary-card-number" id="summary-folha">0</div>
+                        <div class="summary-card-label">Empresas com 80%+</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="list-container" id="section-fiscal">
+            <div class="list-header" onclick="toggleCollapse(this)">
+                <span class="list-title">Pendências - Módulo Fiscal</span>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <button class="btn-discreet" onclick="openFilterPopup(event, 'fiscal')">Filtrar</button>
+                    <span class="collapse-icon">▼</span>
+                </div>
+            </div>
+            <div class="list-content collapsed" id="preview-fiscal"></div>
+        </div>
+
+        <div class="list-container" id="section-contabil">
+            <div class="list-header" onclick="toggleCollapse(this)">
+                <span class="list-title">Pendências - Módulo Contábil</span>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <button class="btn-discreet" onclick="openFilterPopup(event, 'contabil')">Filtrar</button>
+                    <span class="collapse-icon">▼</span>
+                </div>
+            </div>
+            <div class="list-content collapsed" id="preview-contabil"></div>
+        </div>
+
+        <div class="list-container" id="section-folha">
+            <div class="list-header" onclick="toggleCollapse(this)">
+                <span class="list-title">Pendências - Módulo Folha</span>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <button class="btn-discreet" onclick="openFilterPopup(event, 'folha')">Filtrar</button>
+                    <span class="collapse-icon">▼</span>
+                </div>
+            </div>
+            <div class="list-content collapsed" id="preview-folha"></div>
+        </div>
+    </div>
+
+    <div class="export-section" id="export-section" style="display: none;">
+        <a href="https://github.com/iramalho1980/analisador_implantacao/raw/d08544c9d1282782b718a0a469c30988a0cebe1a/bgr_implantacao.bgr" download class="export-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 45px; height: 45px; padding: 0; border-radius: 50%;" title="Baixar Arquivo BGR">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </a>
+        <button class="export-btn" style="margin-left: 15px; display: inline-flex; align-items: center; justify-content: center; width: 45px; height: 45px; padding: 0; border-radius: 50%; background: rgba(168, 230, 207, 0.1); backdrop-filter: blur(8px); border: 1px solid rgba(168, 230, 207, 0.3); color: #a8e6cf; box-shadow: 0 4px 15px rgba(0,0,0,0.2);" onclick="analisarImplantacao()" title="Analisar Implantação">
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        </button>
+    </div>
+</div>
+
+<!-- Popup de Análise com Glassmorphism -->
+<div class="filter-overlay" id="analise-overlay" onclick="closeAnalisePopup()"></div>
+<div class="filter-popup" id="analise-popup" style="text-align: center; max-width: 450px; padding: 40px;">
+    <h3 style="margin: 0 0 25px 0; font-weight: 300; color: var(--accent-yellow); letter-spacing: 1.5px; font-size: 0.9rem; text-transform: uppercase; opacity: 0.8;">Análise de Implantação</h3>
+    <div style="width: 160px; height: 160px; margin: 0 auto 25px;">
+        <canvas id="analise-chart"></canvas>
+    </div>
+    <div id="analise-content" style="margin-bottom: 30px; line-height: 1.8; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 300;"></div>
+    <button class="export-btn" style="font-size: 0.7rem; padding: 8px 30px; border-radius: 20px; opacity: 0.6;" onclick="closeAnalisePopup()">FECHAR</button>
+</div>
+
+<div class="filter-overlay" id="filter-overlay" onclick="closeFilterPopup()"></div>
+<div class="filter-popup" id="filter-popup">
+    <h3 style="margin: 0; font-weight: 300; color: var(--accent-yellow);">Filtrar Empresas</h3>
+    <input type="text" id="search-filter" class="search-input" placeholder="Buscar por código ou nome...">
+    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button class="btn-discreet" style="font-size: 0.7rem; padding: 4px 8px;" onclick="toggleAllCheckboxes(true)">Selecionar Todos</button>
+        <button class="btn-discreet" style="font-size: 0.7rem; padding: 4px 8px;" onclick="toggleAllCheckboxes(false)">Nenhum</button>
+    </div>
+    <div id="filter-popup-content" style="max-height: 250px; overflow-y: auto; margin-bottom: 25px;"></div>
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+        <button class="btn-discreet" style="background: rgba(72, 219, 251, 0.1); color: #48dbfb;" onclick="generateTXT()">Gerar TXT</button>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn-discreet" onclick="closeFilterPopup()">Cancelar</button>
+            <button class="btn-discreet" style="background: rgba(249, 231, 159, 0.1); color: var(--accent-yellow);" onclick="applyFilter()">Aplicar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allRawData = [];
+    let allData = { fiscal: [], contabil: [], folha: [] };
+    let analiseChart = null;
+    let displayedItems = { fiscal: [], contabil: [], folha: [] };
+    let currentFilterType = null;
+    let currentPage = { fiscal: 1, contabil: 1, folha: 1 };
+    const itemsPerPage = 7;
+
+    // MAPEAMENTO CORRETO DE COLUNAS
+    const fieldMapping = {
+        'fiscal': {
+            'fisc_parametros': 'Parâmetros Fiscal',
+            'mov_total': 'Movimentação de Notas',
+            'apuracao': 'Apuração de Impostos'
+        },
+        'contabil': {
+            'cont_parametros': 'Parâmetros Contábil',
+            'movimento': 'Movimento Contábil',
+            'lcto_si': 'Balanço de Abertura'
+        },
+        'folha': {
+            'qtde_emp': 'Empregados Cadastrados',
+            'folha_parametros': 'Parâmetros Folha',
+            'cadastros': 'Cadastros da Folha',
+            'envio_e_social': 'E-Social Enviado',
+            'cal_folha': 'Folha Calculada'
+        }
+    };
+
+    // FUNÇÃO PARA ALTERNAR COLAPSO DOS CARDS DE ESTATÍSTICAS
+    function toggleStatCard(element) {
+        element.classList.toggle('expanded');
+    }
+
+    // FUNÇÃO PARA ALTERNAR COLAPSO DOS CARDS DE RESUMO
+    function toggleSummaryCard(element) {
+        element.classList.toggle('expanded');
+    }
+
+    // FUNÇÃO PARA ANIMAR O SPINNER DE IMPORTAÇÃO
+    function animateImportSpinner(duration = 3000) {
+        const overlay = document.getElementById('import-overlay');
+        const percentageEl = document.getElementById('import-percentage');
+        const textEl = document.getElementById('import-text');
+        
+        overlay.classList.add('active');
+        
+        let currentPercentage = 0;
+        const startTime = Date.now();
+        
+        const updateProgress = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min((elapsed / duration) * 100, 100);
+            
+            currentPercentage = Math.floor(progress);
+            percentageEl.innerText = currentPercentage + '%';
+            
+            // Atualizar mensagem
+            if (currentPercentage < 30) {
+                textEl.innerText = 'Lendo arquivo...';
+            } else if (currentPercentage < 60) {
+                textEl.innerText = 'Processando dados...';
+            } else if (currentPercentage < 90) {
+                textEl.innerText = 'Calculando estatísticas...';
+            } else {
+                textEl.innerText = 'Finalizando...';
+            }
+            
+            if (progress < 100) {
+                requestAnimationFrame(updateProgress);
+            } else {
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 500);
+            }
+        };
+        
+        updateProgress();
+    }
+
+    function createModernSpinner(containerId, percentage) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner-modern';
+        const ticksContainer = document.createElement('div');
+        ticksContainer.style.position = 'absolute';
+        ticksContainer.style.width = '100%';
+        ticksContainer.style.height = '100%';
+        const totalTicks = 40;
+        const activeTicks = Math.round((percentage / 100) * totalTicks);
+        for (let i = 0; i < totalTicks; i++) {
+            const tick = document.createElement('div');
+            tick.className = 'tick' + (i < activeTicks ? ' active' : '');
+            tick.style.transform = `rotate(${i * (360 / totalTicks)}deg)`;
+            ticksContainer.appendChild(tick);
+        }
+        const text = document.createElement('div');
+        text.className = 'spinner-percentage-text';
+        text.innerText = Math.round(percentage) + '%';
+        spinner.appendChild(ticksContainer);
+        spinner.appendChild(text);
+        container.appendChild(spinner);
+    }
+
+    function toggleCollapse(header) {
+        const content = header.nextElementSibling;
+        const icon = header.querySelector('.collapse-icon');
+        content.classList.toggle('collapsed');
+        icon.classList.toggle('collapsed');
+    }
+
+    function scrollToSection(id) {
+        const element = document.getElementById(id);
+        const content = element.querySelector('.list-content');
+        const icon = element.querySelector('.collapse-icon');
+        content.classList.remove('collapsed');
+        icon.classList.remove('collapsed');
+        element.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // FUNÇÃO PARA VERIFICAR SE UM VALOR É "SIM" OU VÁLIDO
+    function isSim(value, fieldName = '') {
+        if (value === undefined || value === null) return false;
+        
+        // Tratamento especial para quantidade de empregados
+        if (fieldName === 'qtde_emp') {
+            const num = parseFloat(value);
+            return !isNaN(num) && num > 0;
+        }
+
+        const str = String(value).trim().toUpperCase();
+        
+        // Lista de valores que representam "NÃO" ou vazio no Excel
+        const invalidValues = ['NÃO', 'NAO', '', 'NAN', 'NAN()', '0', 'UNDEFINED', 'NULL', '#N/A', '#VALOR!', 'N/A'];
+        
+        if (invalidValues.includes(str)) return false;
+        
+        // Se for "SIM" ou qualquer outro texto (como datas "01/2024"), considera como OK
+        return str.length > 0;
+    }
+
+    window.addEventListener('load', function() {
+        fetch('/home/ubuntu/upload/PLANILHA_IMPLANTACAO.xls')
+            .then(response => response.arrayBuffer())
+            .then(buffer => {
+                const data = new Uint8Array(buffer);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                animateImportSpinner(2000);
+                setTimeout(() => processData(jsonData), 2000);
+            })
+            .catch(err => console.error('Erro ao carregar arquivo:', err));
+    });
+
+    document.getElementById('file-upload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            animateImportSpinner(2000);
+            setTimeout(() => processData(jsonData), 2000);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById('search-filter').addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const labels = document.querySelectorAll('#filter-popup-content label');
+        labels.forEach(label => {
+            const text = label.textContent.toLowerCase();
+            label.style.display = text.includes(term) ? 'flex' : 'none';
+        });
+    });
+
+    function getCompanyStatus(item) {
+        // Fiscal
+        const fiscalFields = ['fisc_parametros', 'mov_total', 'apuracao'];
+        const doneFiscal = fiscalFields.filter(f => isSim(item[f], f)).length;
+        const hasFiscal = doneFiscal === fiscalFields.length;
+
+        // Contábil
+        const contabilFields = ['cont_parametros', 'movimento', 'lcto_si'];
+        const doneContabil = contabilFields.filter(f => isSim(item[f], f)).length;
+        const hasContabil = doneContabil === contabilFields.length;
+
+        // Folha
+        const folhaFields = ['qtde_emp', 'folha_parametros', 'cadastros', 'envio_e_social', 'cal_folha'];
+        
+        // Regra especial: se 'cal_folha' (Folha Calculada) estiver OK, 'folha_parametros' também é considerado OK
+        let doneFolha = 0;
+        const calFolhaOk = isSim(item['cal_folha'], 'cal_folha');
+        
+        folhaFields.forEach(f => {
+            if (isSim(item[f], f)) {
+                doneFolha++;
+            } else if (f === 'folha_parametros' && calFolhaOk) {
+                // Se o cálculo da folha está pronto, assume que os parâmetros também estão
+                doneFolha++;
+            }
+        });
+        
+        const hasFolha = doneFolha === folhaFields.length;
+        
+        const completedCount = [hasFiscal, hasContabil, hasFolha].filter(Boolean).length;
+        
+        // Calcular percentuais de implantação
+        const percFiscal = (doneFiscal / fiscalFields.length) * 100;
+        const percContabil = (doneContabil / contabilFields.length) * 100;
+        const percFolha = (doneFolha / folhaFields.length) * 100;
+        
+        return { 
+            hasFiscal, doneFiscal, fiscalTotal: fiscalFields.length, percFiscal,
+            hasContabil, doneContabil, contabilTotal: contabilFields.length, percContabil,
+            hasFolha, doneFolha, folhaTotal: folhaFields.length, percFolha,
+            completedCount 
+        };
+    }
+
+    function processData(data) {
+        if (!data || data.length === 0) return;
+        allRawData = data;
+        const totalCompanies = data.length;
+        
+        // CÁLCULO DE PROGRESSO GLOBAL (Soma de todos os itens de todas as empresas)
+        let totalFiscalItems = 0, doneFiscalItems = 0;
+        let totalContabilItems = 0, doneContabilItems = 0;
+        let totalFolhaItems = 0, doneFolhaItems = 0;
+
+        // CONTADORES PARA EMPRESAS COM 80%+
+        let companiesFiscal80 = 0;
+        let companiesContabil80 = 0;
+        let companiesFolha80 = 0;
+
+        data.forEach(item => {
+            const s = getCompanyStatus(item);
+            
+            totalFiscalItems += s.fiscalTotal;
+            doneFiscalItems += s.doneFiscal;
+            
+            totalContabilItems += s.contabilTotal;
+            doneContabilItems += s.doneContabil;
+            
+            totalFolhaItems += s.folhaTotal;
+            doneFolhaItems += s.doneFolha;
+
+            // Contar empresas com 80%+
+            if (s.percFiscal >= 80) companiesFiscal80++;
+            if (s.percContabil >= 80) companiesContabil80++;
+            if (s.percFolha >= 80) companiesFolha80++;
+        });
+
+        const percFiscal = (doneFiscalItems / totalFiscalItems) * 100;
+        const percContabil = (doneContabilItems / totalContabilItems) * 100;
+        const percFolha = (doneFolhaItems / totalFolhaItems) * 100;
+
+        allData.fiscal = data.filter(item => !getCompanyStatus(item).hasFiscal);
+        allData.contabil = data.filter(item => !getCompanyStatus(item).hasContabil);
+        allData.folha = data.filter(item => !getCompanyStatus(item).hasFolha);
+
+        updateStats('fiscal', percFiscal);
+        updateStats('contabil', percContabil);
+        updateStats('folha', percFolha);
+
+        // Atualizar cards de resumo
+        updateSummaryCards(companiesFiscal80, companiesContabil80, companiesFolha80);
+
+        displayedItems.fiscal = allData.fiscal.map((_, i) => i);
+        displayedItems.contabil = allData.contabil.map((_, i) => i);
+        displayedItems.folha = allData.folha.map((_, i) => i);
+
+        updatePreview('fiscal'); updatePreview('contabil'); updatePreview('folha');
+
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('export-section').style.display = 'block';
+        
+        // Ocultar upload e mostrar resultado
+        document.getElementById('upload-container').style.display = 'none';
+        document.getElementById('result-container').style.display = 'block';
+        document.getElementById('empty-state').style.display = 'none';
+    }
+
+    function updateSummaryCards(fiscal, contabil, folha) {
+        document.getElementById('summary-fiscal').innerText = fiscal;
+        document.getElementById('summary-contabil').innerText = contabil;
+        document.getElementById('summary-folha').innerText = folha;
+    }
+
+    function updateStats(type, percentage) {
+        createModernSpinner(`spinner-${type}`, percentage);
+        document.getElementById(`global-progress-${type}`).innerText = percentage.toFixed(1) + '%';
+    }
+
+    function changePage(type, delta) {
+        const totalPages = Math.ceil(displayedItems[type].length / itemsPerPage);
+        const newPage = currentPage[type] + delta;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage[type] = newPage;
+            updatePreview(type);
+        }
+    }
+
+    function updatePreview(type) {
+        const container = document.getElementById(`preview-${type}`);
+        const indices = displayedItems[type];
+        const dataList = allData[type];
+        container.innerHTML = '';
+        
+        const totalItems = indices.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+        
+        // Ajustar página atual se necessário
+        if (currentPage[type] > totalPages) currentPage[type] = totalPages;
+        if (currentPage[type] < 1) currentPage[type] = 1;
+
+        const start = (currentPage[type] - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const pageIndices = indices.slice(start, end);
+
+        const rowsContainer = document.createElement('div');
+        rowsContainer.className = 'company-rows-container';
+
+        pageIndices.forEach(idx => {
+            const item = dataList[idx];
+            if (!item) return;
+            const fieldsToCheck = type === 'fiscal' ? ['fisc_parametros', 'mov_total', 'apuracao'] :
+                                  type === 'contabil' ? ['cont_parametros', 'movimento', 'lcto_si'] :
+                                  ['qtde_emp', 'folha_parametros', 'cadastros', 'envio_e_social', 'cal_folha'];
+            
+            let doneCount = 0;
+            fieldsToCheck.forEach(f => {
+                if (isSim(item[f], f)) doneCount++;
+                else if (type === 'folha' && f === 'folha_parametros' && isSim(item['cal_folha'], 'cal_folha')) doneCount++;
+            });
+            const totalCount = fieldsToCheck.length;
+            
+            let statusClass = 'badge-orange';
+            if (doneCount === 0) statusClass = 'badge-red';
+            else if (doneCount === totalCount) statusClass = 'badge-green';
+
+            const row = document.createElement('div');
+            row.className = 'company-row';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'company-row-header';
+            headerDiv.innerHTML = `
+                <span class="company-code">CÓD: ${item.codi_emp || '---'}</span>
+                <span class="company-name">${item.nome_emp || 'Sem Nome'}</span>
+                <span class="status-badge ${statusClass}">${doneCount}/${totalCount} OK</span>
+            `;
+
+            const detailsDiv = document.createElement('div');
+            detailsDiv.className = 'company-row-details';
+            
+            fieldsToCheck.forEach(field => {
+                let isDone = isSim(item[field], field);
+                
+                // Regra especial visual para Módulo Folha
+                if (type === 'folha' && field === 'folha_parametros' && isSim(item['cal_folha'], 'cal_folha')) {
+                    isDone = true;
+                }
+                
+                const displayName = fieldMapping[type][field] || field;
+                const detailItem = document.createElement('div');
+                detailItem.className = `detail-item ${isDone ? 'done' : 'pending'}`;
+                const icon = isDone ? '✔' : '✕';
+                const iconClass = isDone ? 'icon-check' : 'icon-pending';
+                detailItem.innerHTML = `<span class="${iconClass}">${icon}</span> ${displayName}`;
+                detailsDiv.appendChild(detailItem);
+            });
+
+            row.appendChild(headerDiv);
+            row.appendChild(detailsDiv);
+            rowsContainer.appendChild(row);
+        });
+
+        container.appendChild(rowsContainer);
+
+        // Adicionar controles de paginação se houver mais de uma página
+        if (totalPages > 1) {
+            const paginationDiv = document.createElement('div');
+            paginationDiv.className = 'pagination-controls';
+            paginationDiv.innerHTML = `
+                <button class="pagination-btn" onclick="changePage('${type}', -1)" ${currentPage[type] === 1 ? 'disabled' : ''}>◀</button>
+                <span class="pagination-info">Página ${currentPage[type]} de ${totalPages}</span>
+                <button class="pagination-btn" onclick="changePage('${type}', 1)" ${currentPage[type] === totalPages ? 'disabled' : ''}>▶</button>
+            `;
+            container.appendChild(paginationDiv);
+        }
+    }
+
+    function openFilterPopup(event, type) {
+        event.stopPropagation();
+        currentFilterType = type;
+        const popup = document.getElementById('filter-popup');
+        const overlay = document.getElementById('filter-overlay');
+        const content = document.getElementById('filter-popup-content');
+        
+        content.innerHTML = '';
+        const dataList = allData[type];
+        
+        dataList.forEach((item, idx) => {
+            const label = document.createElement('label');
+            label.style.display = 'flex';
+            label.style.alignItems = 'center';
+            label.style.gap = '10px';
+            label.style.padding = '8px';
+            label.style.cursor = 'pointer';
+            label.style.color = 'rgba(255, 255, 255, 0.7)';
+            label.style.fontSize = '0.85rem';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = displayedItems[type].includes(idx);
+            checkbox.dataset.index = idx;
+            checkbox.style.cursor = 'pointer';
+            
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(`${item.codi_emp} - ${item.nome_emp}`));
+            content.appendChild(label);
+        });
+        
+        popup.classList.add('active');
+        overlay.classList.add('active');
+    }
+
+    function closeFilterPopup() {
+        document.getElementById('filter-popup').classList.remove('active');
+        document.getElementById('filter-overlay').classList.remove('active');
+    }
+
+    function toggleAllCheckboxes(checked) {
+        const checkboxes = document.querySelectorAll('#filter-popup-content input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            // Só altera se o item estiver visível (caso haja busca ativa)
+            if (cb.parentElement.style.display !== 'none') {
+                cb.checked = checked;
+            }
+        });
+    }
+
+    function applyFilter() {
+        if (!currentFilterType) return;
+        const checkboxes = document.querySelectorAll('#filter-popup-content input[type="checkbox"]');
+        displayedItems[currentFilterType] = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                displayedItems[currentFilterType].push(parseInt(cb.dataset.index));
+            }
+        });
+        updatePreview(currentFilterType);
+        closeFilterPopup();
+    }
+
+    function generateTXT() {
+        if (!currentFilterType) return;
+        const checkboxes = document.querySelectorAll('#filter-popup-content input[type="checkbox"]');
+        const dataList = allData[currentFilterType];
+        let content = `RELATÓRIO DE EMPRESAS - MÓDULO ${currentFilterType.toUpperCase()}\n`;
+        content += `Gerado em: ${new Date().toLocaleString('pt-BR')}\n`;
+        content += `--------------------------------------------------\n\n`;
+        
+        let count = 0;
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const item = dataList[parseInt(cb.dataset.index)];
+                if (item) {
+                    content += `CÓDIGO: ${item.codi_emp || '---'} | NOME: ${item.nome_emp || 'Sem Nome'}\n`;
+                    count++;
+                }
+            }
+        });
+
+        if (count === 0) {
+            alert('Por favor, selecione ao menos uma empresa para gerar o TXT.');
+            return;
+        }
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `empresas_${currentFilterType}_${new Date().getTime()}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }
+
+    function exportToPDF() {
+        const element = document.getElementById('dashboard');
+        const opt = {
+            margin: 10,
+            filename: 'relatorio-implantacao.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+
+    function analisarImplantacao() {
+        if (!allRawData || allRawData.length === 0) {
+            alert("Nenhum dado carregado para análise.");
+            return;
+        }
+
+        // Exibir o spinner de carregamento
+        const overlay = document.getElementById('import-overlay');
+        const percentageEl = document.getElementById('import-percentage');
+        const textEl = document.getElementById('import-text');
+        
+        overlay.classList.add('active');
+        textEl.innerText = 'Analisando dados de implantação...';
+        
+        let currentProgress = 0;
+        const duration = 2000; // 2 segundos de animação
+        const startTime = Date.now();
+
+        const updateProgress = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min((elapsed / duration) * 100, 100);
+            
+            percentageEl.innerText = Math.floor(progress) + '%';
+            
+            if (progress < 100) {
+                requestAnimationFrame(updateProgress);
+            } else {
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                    exibirResultadoAnalise();
+                }, 500);
+            }
+        };
+        
+        requestAnimationFrame(updateProgress);
+
+        function exibirResultadoAnalise() {
+            let totalItems = 0;
+            let doneItems = 0;
+
+            allRawData.forEach(item => {
+                const s = getCompanyStatus(item);
+                totalItems += (s.fiscalTotal + s.contabilTotal + s.folhaTotal);
+                doneItems += (s.doneFiscal + s.doneContabil + s.doneFolha);
+            });
+
+            const percentualTotal = (doneItems / totalItems) * 100;
+            let mensagem = "";
+            let cor = "#fff";
+            let avisoExtra = "";
+
+            if (percentualTotal < 30) {
+                mensagem = "ATENÇÃO: Foram implantadas poucas empresas";
+                cor = "#ff6b6b";
+            } else if (percentualTotal > 45 && percentualTotal < 50) {
+                mensagem = "ATENÇÃO: evolução está acontecendo";
+                cor = "#feca57";
+            } else if (percentualTotal >= 50 && percentualTotal <= 65) {
+                mensagem = "Foi atingida metade de sua implantação";
+                cor = "#48dbfb";
+            } else if (percentualTotal > 75 && percentualTotal <= 100) {
+                mensagem = "Atenção - Implantação com andamento normal (analisar conclusão)";
+                cor = "#1dd1a1";
+            } else {
+                mensagem = `Implantação em andamento: ${percentualTotal.toFixed(1)}% concluído.`;
+                cor = "rgba(255,255,255,0.8)";
+            }
+
+            // Mensagem extra para valores abaixo de 50%
+            if (percentualTotal < 50) {
+                avisoExtra = ``;
+            }
+
+            const content = document.getElementById('analise-content');
+            content.innerHTML = `<div style="font-size: 2rem; font-weight: 300; margin-bottom: 10px; color: ${cor}; letter-spacing: -1px;">${percentualTotal.toFixed(1)}%</div>
+                                 <div style="font-weight: 300; letter-spacing: 0.5px; color: rgba(255,255,255,0.8);">${mensagem}</div>
+                                 ${avisoExtra}`;
+            
+            // Renderizar o gráfico de pizza
+            const ctx = document.getElementById('analise-chart').getContext('2d');
+            
+            if (analiseChart) {
+                analiseChart.destroy();
+            }
+            
+            analiseChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Concluído', 'Pendente'],
+                    datasets: [{
+                        data: [percentualTotal, 100 - percentualTotal],
+                        backgroundColor: [cor, 'rgba(255, 255, 255, 0.1)'],
+                        borderColor: ['rgba(255, 255, 255, 0.2)', 'transparent'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            document.getElementById('analise-popup').style.display = 'block';
+            document.getElementById('analise-overlay').style.display = 'block';
+        }
+    }
+
+    function closeAnalisePopup() {
+        document.getElementById('analise-popup').style.display = 'none';
+        document.getElementById('analise-overlay').style.display = 'none';
+    }
+</script>
+</body>
+</html>
